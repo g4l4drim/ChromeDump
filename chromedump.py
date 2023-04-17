@@ -12,6 +12,8 @@ import time
 import base64, binascii
 import mimetypes #file type management
 from datetime import datetime
+import argparse
+
 
 def timestamp():
     #return int(round(time.time() * 1000))
@@ -144,6 +146,15 @@ class Browser():
             time.sleep(5)
             self.ioloop.stop()
 
+    def create_tab(self):
+        pass
+
+    def open_url(tab_id):
+        pass
+
+    def close_tab(tab_id):
+        pass
+
 class TabHandler():
     id=1
     
@@ -207,6 +218,7 @@ class TabHandler():
             for message in params_list:
                 self.write_message(message)
                 self.run()
+
     @gen.coroutine
     def write_message(self, message):
         message_str=json.dumps(message)
@@ -300,7 +312,6 @@ class TabHandler():
                         filename="%s" % self.bodyindex[rid]
                     else:
                         filename="%s" % rid
-                    #print(result["body"])
                     if orphaned:
                         self.dumpfile.file(filename,body)
                     else:
@@ -311,31 +322,53 @@ class TabHandler():
                         if extension == None :
                             extension=""
                         filename=filename+extension
-                        self.dumpfile.file(filename,body)
+                        if result["base64Encoded"]:
+                            print("base64 body:"+filename)
+                            body=base64.b64decode(body)
+                            self.dumpfile.rawfile(filename,body)
+                        else:
+                            self.dumpfile.file(filename,body)
             else:
                 self.dumplog.other(json.dumps(msg,indent=2))
         self.dumplog.info("done saving")
-#        with open(self.file_path,"a") as results_file:
-#            results_file.write(json.dumps(self.ws_message_list,indent=2))
 
 if __name__ == "__main__":
     
-    dumptime=time.strftime("%Y-%m-%d_%H-%M-%S")
-    savedir="dump_%s" % dumptime
-    os.mkdir(savedir)
-    profiledir=savedir+"/profile"
-    os.mkdir(profiledir)
+    parser= argparse.ArgumentParser(description='ChromeDump - CDP Based JavaScript dumper') 
     
-    chromium= subprocess.Popen(["chromium","--remote-debugging-port=9222","--user-data-dir="+profiledir],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+    parser.add_argument('-u','--url', dest='url_list', type=str, nargs='+',help='urls to open')
+    parser.add_argument('-z','--zip', dest='compress', type=bool, nargs='?',help='create a zip archive (based on linux zip command)',default=True)
+    parser.add_argument('-p','--password', dest='password', type=str, nargs='?',help='password for the zip archive', default='infected')
+    parser.add_argument('--remote-debugging-port', dest='cdp_port', type=str, nargs='?', help='CDP port to connect to', default='9222')
+    parser.add_argument('--remote-debuging-ip',dest='cdp_ip',type=str,nargs='?',help='CDP target ip',default='127.0.0.1')
+    parser.add_argument('--chromeargs', dest='chrome_args', type=str, nargs='+', help='arguments passed to the chrome/chromium binary',default=[])
+    parser.add_argument('--no-profile', dest='chrome_noprofile', type=bool,nargs='?',help="do not generate a new profile, use the existing one",default=False)
+    parser.add_argument('-b','--chrome-binary', dest='chrome_bin', type=str, nargs='?', help='Chrome/Chromium binary to use', default="chromium")    
+    
+    dumptime=time.strftime("%Y-%m-%d_%H-%M-%S")
+    parser.add_argument('-d', dest='savedir', type=str, nargs='?', help='directory location to store dumped data',default=("dump_%s" % dumptime))
+
+    
+    args = parser.parse_args()
+    print(args)
+    os.mkdir(args.savedir)
+    profiledir=args.savedir+"/profile"
+    os.mkdir(profiledir)
+    chromeargs=[args.chrome_bin,"--remote-debugging-port="+args.cdp_port]
+    if not args.chrome_noprofile:
+        chromeargs=chromeargs+["--user-data-dir="+profiledir]
+    chromeargs=chromeargs+args.chrome_args
+    chromium= subprocess.Popen([args.chrome_bin,"--remote-debugging-port="+args.cdp_port,"--user-data-dir="+profiledir],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
     #wait for CDP log line
     chromeout= chromium.stderr.readline().decode()
     while "DevTools listening on" not in chromeout:
         chromeout= chromium.stderr.readline().decode()
     time.sleep(1)
-    client = Browser("127.0.0.1","9222",savedir)
-    tar= subprocess.Popen(["zip","-e","-P infected","-r",savedir+".zip",savedir])
-    tar.wait()
-    #remove dir
-    cleandir = subprocess.Popen(["rm","-rf",savedir])
-    cleandir.wait()
+    client = Browser(args.cdp_ip,args.cdp_port,args.savedir)
+    if args.compress:
+        tar= subprocess.Popen(["zip","-e","-P {}" % args.password,"-r",args.savedir+".zip",args.savedir])
+        tar.wait()
+        #remove dir
+        cleandir = subprocess.Popen(["rm","-rf",args.savedir])
+        cleandir.wait()
 
