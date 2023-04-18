@@ -346,11 +346,8 @@ if __name__ == "__main__":
     parser.add_argument('-b','--chrome-binary', dest='chrome_bin', type=str, nargs='?', help='Chrome/Chromium binary to use', default="chromium")    
     
     dumptime=time.strftime("%Y-%m-%d_%H-%M-%S")
-    parser.add_argument('-d', dest='savedir', type=str, nargs='?', help='directory location to store dumped data',default=("dump_%s" % dumptime))
-
-    
+    parser.add_argument('-d', dest='savedir', type=str, nargs='?', help='directory location to store dumped data',default=("dump_%s" % dumptime)) 
     args = parser.parse_args()
-    print(args)
     os.mkdir(args.savedir)
     profiledir=args.savedir+"/profile"
     os.mkdir(profiledir)
@@ -358,7 +355,12 @@ if __name__ == "__main__":
     if not args.chrome_noprofile:
         chromeargs=chromeargs+["--user-data-dir="+profiledir]
     chromeargs=chromeargs+args.chrome_args
-    chromium= subprocess.Popen([args.chrome_bin,"--remote-debugging-port="+args.cdp_port,"--user-data-dir="+profiledir],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+    if len(args.url_list)>0:
+        chromeargs.append(args.url_list.pop())
+        for url in args.url_list:
+            chromeargs.append("--new-tab")
+            chromeargs.append(url)
+    chromium= subprocess.Popen(chromeargs,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
     #wait for CDP log line
     chromeout= chromium.stderr.readline().decode()
     while "DevTools listening on" not in chromeout:
