@@ -142,18 +142,20 @@ class Browser():
 
     def close_ws(self, target_id):
         del self.tab_dict[target_id]
+        #print(len(asyncio.all_tasks()))
         if len(self.tab_dict) == 0:
-            time.sleep(5)
+            if len(asyncio.all_tasks())==1:
+                tasks=asyncio.all_tasks()
+                for task in tasks:
+                    #print(f'> {task.get_name()}, {task.get_coro()}')
+                    time.sleep(0.1)
             self.ioloop.stop()
-
-    def create_tab(self):
-        pass
+            self.ioloop.close()
+               
 
     def open_url(tab_id):
         pass
 
-    def close_tab(tab_id):
-        pass
 
 class TabHandler():
     id=1
@@ -184,7 +186,7 @@ class TabHandler():
         except Exception:
             self.dumplog.info("tab connection refused")
         else:
-            self.dumplog.info("connected")
+            self.dumplog.info("tab connected")
             #self.ws.on_connection_closed=self.callback["close_tab"](self.target_id)
             params_list = [
                 {"id":1,"method":"Page.enable"},
@@ -214,7 +216,7 @@ class TabHandler():
                 {"id":11,"method":"Runtime.runIfWaitingForDebugger"}#,
                     #"params":{}},
             ]
-            id=11
+            #id=11
             for message in params_list:
                 self.write_message(message)
                 self.run()
@@ -323,7 +325,7 @@ class TabHandler():
                             extension=""
                         filename=filename+extension
                         if result["base64Encoded"]:
-                            print("base64 body:"+filename)
+                            #print("base64 body:"+filename)
                             body=base64.b64decode(body)
                             self.dumpfile.rawfile(filename,body)
                         else:
@@ -337,7 +339,7 @@ if __name__ == "__main__":
     parser= argparse.ArgumentParser(description='ChromeDump - CDP Based JavaScript dumper') 
     
     parser.add_argument('-u','--url', dest='url_list', type=str, nargs='+',help='urls to open')
-    parser.add_argument('-z','--zip', dest='compress', type=bool, nargs='?',help='create a zip archive (based on linux zip command)',default=True)
+    parser.add_argument('-z','--zip', dest='compress',action='store_true',help='create a zip archive (based on linux zip command)',default=False)
     parser.add_argument('-p','--password', dest='password', type=str, nargs='?',help='password for the zip archive', default='infected')
     parser.add_argument('--remote-debugging-port', dest='cdp_port', type=str, nargs='?', help='CDP port to connect to', default='9222')
     parser.add_argument('--remote-debuging-ip',dest='cdp_ip',type=str,nargs='?',help='CDP target ip',default='127.0.0.1')
@@ -355,7 +357,7 @@ if __name__ == "__main__":
     if not args.chrome_noprofile:
         chromeargs=chromeargs+["--user-data-dir="+profiledir]
     chromeargs=chromeargs+args.chrome_args
-    if len(args.url_list)>0:
+    if args.url_list is not None:
         chromeargs.append(args.url_list.pop())
         for url in args.url_list:
             chromeargs.append("--new-tab")
@@ -367,10 +369,10 @@ if __name__ == "__main__":
         chromeout= chromium.stderr.readline().decode()
     time.sleep(1)
     client = Browser(args.cdp_ip,args.cdp_port,args.savedir)
-    if args.compress:
+    print(args)
+    if args.compress is not False:
         tar= subprocess.Popen(["zip","-e","-P {}" % args.password,"-r",args.savedir+".zip",args.savedir])
         tar.wait()
         #remove dir
         cleandir = subprocess.Popen(["rm","-rf",args.savedir])
         cleandir.wait()
-
