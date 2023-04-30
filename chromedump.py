@@ -148,6 +148,7 @@ class Browser():
                 tasks=asyncio.all_tasks()
                 for task in tasks:
                     #print(f'> {task.get_name()}, {task.get_coro()}')
+                    #Dirty fix for the websocket close wait :s
                     time.sleep(0.1)
             self.ioloop.stop()
             self.ioloop.close()
@@ -340,7 +341,7 @@ if __name__ == "__main__":
     
     parser.add_argument('-u','--url', dest='url_list', type=str, nargs='+',help='urls to open')
     parser.add_argument('-z','--zip', dest='compress',action='store_true',help='create a zip archive (based on linux zip command)',default=False)
-    parser.add_argument('-p','--password', dest='password', type=str, nargs='?',help='password for the zip archive', default='infected')
+    parser.add_argument('-p','--password', dest='password', type=str,help='password for the zip archive', default='infected')
     parser.add_argument('--remote-debugging-port', dest='cdp_port', type=str, nargs='?', help='CDP port to connect to', default='9222')
     parser.add_argument('--remote-debuging-ip',dest='cdp_ip',type=str,nargs='?',help='CDP target ip',default='127.0.0.1')
     parser.add_argument('--chromeargs', dest='chrome_args', type=str, nargs='+', help='arguments passed to the chrome/chromium binary',default=[])
@@ -369,9 +370,8 @@ if __name__ == "__main__":
         chromeout= chromium.stderr.readline().decode()
     time.sleep(1)
     client = Browser(args.cdp_ip,args.cdp_port,args.savedir)
-    print(args)
     if args.compress is not False:
-        tar= subprocess.Popen(["zip","-e","-P {}" % args.password,"-r",args.savedir+".zip",args.savedir])
+        tar= subprocess.Popen(["zip","-e","-P {}".format(args.password),"-r",args.savedir+".zip",args.savedir])
         tar.wait()
         #remove dir
         cleandir = subprocess.Popen(["rm","-rf",args.savedir])
