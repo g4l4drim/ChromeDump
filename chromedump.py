@@ -113,13 +113,14 @@ class Dumpfiles():
             fd.close()
 
 class Browser():
-    def __init__(self,host, port, savedir):
+    def __init__(self,host, port, savedir,console):
         self.browser_host=host
         self.browser_port=port
         self.browser_host_port="{}:{}".format(host,port)
         self.tab_dict=dict()
         self.ioloop = IOLoop.instance()
         self.result_dir=savedir
+        self.console=console
         self.dumpfile=Dumpfiles(savedir)
         self.dumplog=Dumplog(savedir)
         self.callback={
@@ -138,7 +139,7 @@ class Browser():
     def new_tab(self,target_id):
         if not target_id in self.tab_dict.keys():
             self.dumplog.info(target_id)
-            self.tab_dict[target_id] = TabHandler(self.browser_host_port, target_id, self.callback, self.result_dir, self.dumplog, self.dumpfile)
+            self.tab_dict[target_id] = TabHandler(self.browser_host_port, target_id, self.callback, self.result_dir, self.dumplog, self.dumpfile,self.console)
 
     def close_ws(self, target_id):
         del self.tab_dict[target_id]
@@ -161,12 +162,13 @@ class Browser():
 class TabHandler():
     id=1
     
-    def __init__(self,browser_host_port, target_id, callback, result_dir,dumplog,dumpfile):
+    def __init__(self,browser_host_port, target_id, callback, result_dir,dumplog,dumpfile,console):
         self.browser_host_port=browser_host_port
         self.target_id=target_id
         self.dldir= result_dir+"/downloads"
         self.dumplog=dumplog
         self.dumpfile=dumpfile
+        self.console=console
         self.target_ws_url="ws://{}/devtools/page/{}".format(browser_host_port,target_id)
         self.ws_message_list=list()
         self.callback=callback
@@ -218,6 +220,11 @@ class TabHandler():
                     #"params":{}},
             ]
             #id=11
+            if self.console:
+                params_list[7]= {"id":8,"method":"Console.enable"}
+            else:
+                params_list[7]= {"id":8,"method":"Console.disable"}
+                params_list.append({"id":12,"method":"Runtime.discardConsoleEntries"})
             for message in params_list:
                 self.write_message(message)
                 self.run()
@@ -341,6 +348,7 @@ if __name__ == "__main__":
     
     parser.add_argument('-u','--url', dest='url_list', type=str, nargs='+',help='urls to open')
     parser.add_argument('-z','--zip', dest='compress',action='store_true',help='create a zip archive (based on linux zip command)',default=False)
+    parser.add_argument('-nc','--no-console', dest='console',action='store_false',help='disable console logging (can be detected from JavaScript)',default=False)    
     parser.add_argument('-p','--password', dest='password', type=str,help='password for the zip archive', default='infected')
     parser.add_argument('--remote-debugging-port', dest='cdp_port', type=str, nargs='?', help='CDP port to connect to', default='9222')
     parser.add_argument('--remote-debuging-ip',dest='cdp_ip',type=str,nargs='?',help='CDP target ip',default='127.0.0.1')
@@ -369,7 +377,7 @@ if __name__ == "__main__":
     while "DevTools listening on" not in chromeout:
         chromeout= chromium.stderr.readline().decode()
     time.sleep(1)
-    client = Browser(args.cdp_ip,args.cdp_port,args.savedir)
+    client = Browser(args.cdp_ip,args.cdp_port,args.savedir,args.console)
     if args.compress is not False:
         tar= subprocess.Popen(["zip","-e","-P {}".format(args.password),"-r",args.savedir+".zip",args.savedir])
         tar.wait()
